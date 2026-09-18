@@ -3,8 +3,9 @@
 Backs the LRU tracker, which needs to remove or move an arbitrary node
 by direct reference (no scan) -- hence every removal/move method works
 off a node reference instead of searching for the value. Hash map
-bucket chaining uses SinglyLinkedList instead, since it only ever
-walks forward from the bucket head.
+bucket chaining owns its own private node type instead, since it only
+ever walks forward from the bucket head and has no other consumer to
+justify a separate reusable list class.
 """
 
 

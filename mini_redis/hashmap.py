@@ -1,16 +1,29 @@
-"""Hash map with separate chaining, built on top of SinglyLinkedList buckets."""
+"""Hash map with separate chaining.
 
-from .sllist import SinglyLinkedList
+Chain nodes are HashMap's own private implementation detail, not a
+separate reusable list class -- HashMap is their only ever consumer, so
+pointer manipulation (rehashing, unlinking) stays inside the class that
+owns it instead of reaching into another class's internals.
+"""
 
 _INITIAL_CAPACITY = 8
 _LOAD_FACTOR = 0.75
+
+
+class _Node:
+    __slots__ = ("key", "value", "next")
+
+    def __init__(self, key, value, next=None):
+        self.key = key
+        self.value = value
+        self.next = next
 
 
 class HashMap:
     def __init__(self, capacity=_INITIAL_CAPACITY):
         self._capacity = capacity
         self._size = 0
-        self._buckets = [SinglyLinkedList() for _ in range(capacity)]
+        self._buckets = [None] * capacity  # each slot: chain head _Node, or None
 
     def _hash(self, key):
         # djb2: cheap to compute and spreads short ASCII keys (typical Redis
@@ -26,9 +39,9 @@ class HashMap:
     def _find_node(self, key):
         idx = self._bucket_index(key)
         prev = None
-        node = self._buckets[idx].head
+        node = self._buckets[idx]
         while node is not None:
-            if node.data[0] == key:
+            if node.key == key:
                 return idx, prev, node
             prev = node
             node = node.next
@@ -38,50 +51,68 @@ class HashMap:
         # Capacity is always a power of two, so doubling it only ever adds
         # one bit to the index. Each old bucket's chain therefore splits
         # into exactly two new buckets -- same index (that bit is 0, "low")
-        # or index + old_capacity (that bit is 1, "high") -- so nodes can be
+        # or index + old_capacity (that bit is 1, "high") -- so nodes are
         # relinked into the new buckets in place instead of reallocated.
         old_buckets = self._buckets
         old_capacity = self._capacity
         self._capacity *= 2
-        self._buckets = [SinglyLinkedList() for _ in range(self._capacity)]
-        for i, bucket in enumerate(old_buckets):
-            node = bucket.head
+        self._buckets = [None] * self._capacity
+
+        for i, node in enumerate(old_buckets):
+            low_head = low_tail = None
+            high_head = high_tail = None
             while node is not None:
                 next_node = node.next
-                if self._hash(node.data[0]) & old_capacity == 0:
-                    self._buckets[i].append_node(node)
+                node.next = None
+                if self._hash(node.key) & old_capacity == 0:
+                    if low_tail is None:
+                        low_head = node
+                    else:
+                        low_tail.next = node
+                    low_tail = node
                 else:
-                    self._buckets[i + old_capacity].append_node(node)
+                    if high_tail is None:
+                        high_head = node
+                    else:
+                        high_tail.next = node
+                    high_tail = node
                 node = next_node
+            self._buckets[i] = low_head
+            self._buckets[i + old_capacity] = high_head
 
     def put(self, key, value):
         idx, _, node = self._find_node(key)
         if node is not None:
-            node.data = (key, value)
+            node.value = value
             return
-        self._buckets[idx].insert_back((key, value))
+        self._buckets[idx] = _Node(key, value, next=self._buckets[idx])
         self._size += 1
         if self._size / self._capacity > _LOAD_FACTOR:
             self._resize()
 
     def get(self, key):
         _, _, node = self._find_node(key)
-        return node.data[1] if node is not None else None
+        return node.value if node is not None else None
 
     def pop(self, key):
         idx, prev, node = self._find_node(key)
         if node is None:
             return None
-        value = node.data[1]
-        self._buckets[idx].remove_after(prev, node)
+        if prev is None:
+            self._buckets[idx] = node.next
+        else:
+            prev.next = node.next
         self._size -= 1
-        return value
+        return node.value
 
     def remove(self, key):
         idx, prev, node = self._find_node(key)
         if node is None:
             return False
-        self._buckets[idx].remove_after(prev, node)
+        if prev is None:
+            self._buckets[idx] = node.next
+        else:
+            prev.next = node.next
         self._size -= 1
         return True
 
@@ -91,9 +122,10 @@ class HashMap:
 
     def keys(self):
         result = []
-        for bucket in self._buckets:
-            for key, _ in bucket:
-                result.append(key)
+        for node in self._buckets:
+            while node is not None:
+                result.append(node.key)
+                node = node.next
         return result
 
     def size(self):
