@@ -35,13 +35,24 @@ class HashMap:
         return idx, None, None
 
     def _resize(self):
+        # Capacity is always a power of two, so doubling it only ever adds
+        # one bit to the index. Each old bucket's chain therefore splits
+        # into exactly two new buckets -- same index (that bit is 0, "low")
+        # or index + old_capacity (that bit is 1, "high") -- so nodes can be
+        # relinked into the new buckets in place instead of reallocated.
         old_buckets = self._buckets
+        old_capacity = self._capacity
         self._capacity *= 2
         self._buckets = [SinglyLinkedList() for _ in range(self._capacity)]
-        for bucket in old_buckets:
-            for key, value in bucket:
-                idx = self._bucket_index(key)
-                self._buckets[idx].insert_back((key, value))
+        for i, bucket in enumerate(old_buckets):
+            node = bucket.head
+            while node is not None:
+                next_node = node.next
+                if self._hash(node.data[0]) & old_capacity == 0:
+                    self._buckets[i].append_node(node)
+                else:
+                    self._buckets[i + old_capacity].append_node(node)
+                node = next_node
 
     def put(self, key, value):
         idx, _, node = self._find_node(key)

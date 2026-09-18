@@ -30,13 +30,19 @@ class SinglyLinkedList:
 
     def insert_back(self, data):
         node = SLLNode(data)
+        self.append_node(node)
+        return node
+
+    def append_node(self, node):
+        """Append an existing node to the tail without allocating a new one
+        (used when splicing nodes between lists, e.g. hash map rehashing)."""
+        node.next = None
         if self.tail is not None:
             self.tail.next = node
         else:
             self.head = node
         self.tail = node
         self._size += 1
-        return node
 
     def remove_after(self, prev, node):
         """Remove `node` in O(1), given the predecessor found while scanning

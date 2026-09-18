@@ -4,6 +4,27 @@ from mini_redis.sllist import SinglyLinkedList
 
 
 class TestSinglyLinkedList(unittest.TestCase):
+    def test_append_node_reuses_existing_node(self):
+        src = SinglyLinkedList()
+        node = src.insert_back(1)
+        dst = SinglyLinkedList()
+        dst.append_node(node)
+        self.assertIs(dst.head, node)  # same object, no reallocation
+        self.assertIs(dst.tail, node)
+        self.assertEqual(list(dst), [1])
+        self.assertEqual(dst.size(), 1)
+        self.assertIsNone(node.next)  # detached from any prior chain
+
+    def test_append_node_onto_existing_tail(self):
+        dst = SinglyLinkedList()
+        dst.insert_back(1)
+        other = SinglyLinkedList()
+        node2 = other.insert_back(2)
+        dst.append_node(node2)
+        self.assertEqual(list(dst), [1, 2])
+        self.assertIs(dst.tail, node2)
+        self.assertEqual(dst.size(), 2)
+
     def test_insert_back(self):
         sll = SinglyLinkedList()
         sll.insert_back(1)

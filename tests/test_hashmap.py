@@ -80,6 +80,16 @@ class TestHashMap(unittest.TestCase):
             hm.put(f"key{i}", i)
         self.assertLessEqual(hm.size() / hm._capacity, _LOAD_FACTOR)
 
+    def test_resize_reuses_nodes_instead_of_reallocating(self):
+        hm = HashMap(capacity=4)
+        hm.put("a", 1)
+        _, _, node_before = hm._find_node("a")
+        for i in range(20):  # forces several resizes
+            hm.put(f"key{i}", i)
+        _, _, node_after = hm._find_node("a")
+        self.assertIs(node_before, node_after)
+        self.assertEqual(hm.get("a"), 1)
+
 
 if __name__ == "__main__":
     unittest.main()
