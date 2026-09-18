@@ -1,8 +1,10 @@
 """Doubly linked list with O(1) insert/remove/move operations.
 
-Reused by both the hash map (chaining buckets) and the LRU tracker,
-which is why every removal/move method works off a direct node
-reference instead of searching for the value.
+Backs the LRU tracker, which needs to remove or move an arbitrary node
+by direct reference (no scan) -- hence every removal/move method works
+off a node reference instead of searching for the value. Hash map
+bucket chaining uses SinglyLinkedList instead, since it only ever
+walks forward from the bucket head.
 """
 
 

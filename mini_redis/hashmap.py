@@ -1,6 +1,6 @@
-"""Hash map with separate chaining, built on top of DoublyLinkedList buckets."""
+"""Hash map with separate chaining, built on top of SinglyLinkedList buckets."""
 
-from .dllist import DoublyLinkedList
+from .sllist import SinglyLinkedList
 
 _INITIAL_CAPACITY = 8
 _LOAD_FACTOR = 0.75
@@ -10,7 +10,7 @@ class HashMap:
     def __init__(self, capacity=_INITIAL_CAPACITY):
         self._capacity = capacity
         self._size = 0
-        self._buckets = [DoublyLinkedList() for _ in range(capacity)]
+        self._buckets = [SinglyLinkedList() for _ in range(capacity)]
 
     def _hash(self, key):
         # djb2: cheap to compute and spreads short ASCII keys (typical Redis
@@ -25,24 +25,26 @@ class HashMap:
 
     def _find_node(self, key):
         idx = self._bucket_index(key)
+        prev = None
         node = self._buckets[idx].head
         while node is not None:
             if node.data[0] == key:
-                return idx, node
+                return idx, prev, node
+            prev = node
             node = node.next
-        return idx, None
+        return idx, None, None
 
     def _resize(self):
         old_buckets = self._buckets
         self._capacity *= 2
-        self._buckets = [DoublyLinkedList() for _ in range(self._capacity)]
+        self._buckets = [SinglyLinkedList() for _ in range(self._capacity)]
         for bucket in old_buckets:
             for key, value in bucket:
                 idx = self._bucket_index(key)
                 self._buckets[idx].insert_back((key, value))
 
     def put(self, key, value):
-        idx, node = self._find_node(key)
+        idx, _, node = self._find_node(key)
         if node is not None:
             node.data = (key, value)
             return
@@ -52,28 +54,28 @@ class HashMap:
             self._resize()
 
     def get(self, key):
-        _, node = self._find_node(key)
+        _, _, node = self._find_node(key)
         return node.data[1] if node is not None else None
 
     def pop(self, key):
-        idx, node = self._find_node(key)
+        idx, prev, node = self._find_node(key)
         if node is None:
             return None
         value = node.data[1]
-        self._buckets[idx].remove_node(node)
+        self._buckets[idx].remove_after(prev, node)
         self._size -= 1
         return value
 
     def remove(self, key):
-        idx, node = self._find_node(key)
+        idx, prev, node = self._find_node(key)
         if node is None:
             return False
-        self._buckets[idx].remove_node(node)
+        self._buckets[idx].remove_after(prev, node)
         self._size -= 1
         return True
 
     def contains(self, key):
-        _, node = self._find_node(key)
+        _, _, node = self._find_node(key)
         return node is not None
 
     def keys(self):
